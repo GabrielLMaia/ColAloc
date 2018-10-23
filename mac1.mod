@@ -37,79 +37,58 @@ tuple Localizacao {
 
 {Localizacao} localizacoes = ...;
 
-tuple AlocacaoPolicia {
-	Policial policia;
-	Localizacao localizacao;
-	int tempo;
-}
-
-
-{AlocacaoPolicia} alocacoesP = 
-		{<p, l, t> | p in policiais, l in localizacoes, t in periodos};
-
-
-tuple AlocacaoCamera {
-	Camera camera;
-	Localizacao localizacao;
-}
-
-{AlocacaoCamera} alocacoesC = 
-		{<c, l> | c in cameras, l in localizacoes};
-		
-tuple Adjacencia {
-	Localizacao localizacao;
-	int tempo;
-}
-
-{Adjacencia} adjacencias = 
-		{<l, t> | l in localizacoes, t in periodos};
-
 		
 //Se aquela alocação(Policia, Local, Tempo) ocorre
-dvar boolean x[alocacoesP];
+dvar boolean x[policiais,localizacoes,periodos];
 
 //Se aquela alocação(Camera, Local) ocorre
-dvar boolean y[alocacoesC];
+dvar boolean y[cameras,localizacoes];
 
 //Quanto violencia foi diminuida daquele local(Permite valor maior)
-dvar int q[adjacencias];
+dvar int q[localizacoes,periodos];
 
 //Variavel logica, tc<q: tc   else: q
-dvar int v[adjacencias];
+dvar int v[localizacoes,periodos];
 
 maximize
     //maximizar a diminuição do crime
-	sum(l in localizacoes, t in periodos) v[<l,t>];
+	sum(l in localizacoes, p in periodos) v[l,p];
 	
 subject to {
 	forall(po in policiais){
-		//Garantir que uma policia não vai ser alocada em multiplos locais no mesmo horário, no período inicial 	
-		sum(<po,l,1> in alocacoesP) x[<po,l,1>] == 1;				
+		//Garantir que uma policia não vai ser alocada em multiplos locais no mesmo horário 	
+		sum(l in localizacoes,p in periodos) x[po,l,p] == 1;				
 	}
+	
 	forall(l in localizacoes){
-			forall(p in periodos : p > 1 && p <= numPeriodos)	{	
+			forall(p in periodos : p > 1 && p <= numPeriodos)	{			
+				//Garantir que um policial só poderá para um local adjacente, respeitando sua capacidade de movimentação
 				forall(po in policiais : po.tipo == "pé")
-					x[<po,l,p>] - sum(<po,l2 ,p2> in alocacoesP : item(l2.distancias,l.id) < 2 && p2 == p+1) x[<po,l2,p2>] >= 0;	
+					x[po,l,p] - sum(l2 in localizacoes: item(l2.distancias,l.id) < 2) x[po,l2,p+1] <= 0;	
 				forall(po in policiais : po.tipo == "carro")
-				    x[<po,l,p>] - sum(<po,l2 ,p2> in alocacoesP : item(l2.distancias,l.id) < 3 && p2 == p+1) x[<po,l2,p2>] >= 0;
+				    x[po,l,p] - sum(l2 in localizacoes: item(l2.distancias,l.id) < 3) x[po,l2,p+1] <= 0;
 				forall(po in policiais : po.tipo == "moto")
-					x[<po,l,p>] - sum(<po,l2 ,p2> in alocacoesP : item(l2.distancias,l.id) < 4 && p2 == p+1) x[<po,l2,p2>] >= 0;	
+					x[po,l,p] - sum(l2 in localizacoes: item(l2.distancias,l.id) < 4) x[po,l2,p+1] <= 0;	
 			}
  	}				
 	
 	forall(ca in cameras){
 	  	//Garantir que uma câmera não vai ser alocada em multiplos locais
-	  	sum(<ca,l> in alocacoesC) y[<ca,l>] == 1;
+	  	sum(l in localizacoes) y[ca,l] == 1;
 	}
 
-	forall(<l,t> in adjacencias){	
-		//Setar a quantidade de crime 'q' a ser reduzida daquele local
-		sum(<po,l,t> in alocacoesP) x[<po,l,t>] * item(l.taxaCrime,t) + sum(<po,l2,t> in alocacoesP : item(l2.distancias,l.id) < 2) x[<po,l,t>] * item(l.taxaCrime,t)* 0.5
-		+ sum(<po,l2,t> in alocacoesP : item(l2.distancias,l.id) < 3) x[<po,l,t>] * item(l.taxaCrime,t)* 0.25 + sum(<po,l2,t> in alocacoesP : item(l2.distancias,l.id) < 4) x[<po,l,t>] * item(l.taxaCrime,t)* 0.1  == q[<l,t>];
-		//Restrição lógica para limitar o ‘v’
-		v[<l,t>] <= q[<l,t>];
-		//Restrições lógicas para garantir que a taxa de crime não será negativa
-		v[<l,t>] <=  item(l.taxaCrime,t);
+	forall(l in localizacoes){
+		forall(p in periodos){	
+			//Setar a quantidade de crime 'q' a ser reduzida daquele local
+			sum(po in policiais) x[po,l,p] * item(l.taxaCrime,p) 
+			+ sum(po in policiais, l2 in localizacoes : item(l2.distancias,l.id) < 2) x[po,l2,p] * item(l.taxaCrime,p)* 0.5
+			+ sum(po in policiais, l2 in localizacoes : item(l2.distancias,l.id) < 3) x[po,l2,p] * item(l.taxaCrime,p)* 0.25
+			+ sum(po in policiais, l2 in localizacoes : item(l2.distancias,l.id) < 4) x[po,l2,p] * item(l.taxaCrime,p)* 0.1  == q[l,p];
+			//Restrição lógica para limitar o ‘v’
+			v[l,p] <= q[l,p];
+			//Restrições lógicas para garantir que a taxa de crime não será negativa
+			v[l,p] <=  item(l.taxaCrime,p);
+		}		
 	}	
 	
 }
