@@ -56,8 +56,10 @@ maximize
 	
 subject to {
 	forall(po in policiais){
-		//Garantir que uma policia não vai ser alocada em multiplos locais no mesmo horário 	
-		sum(l in localizacoes,p in periodos) x[po,l,p] == 1;				
+		forall(p in periodos){	
+			//Garantir que uma policia não vai ser alocada em multiplos locais no mesmo horário 	
+			sum(l in localizacoes) x[po,l,p] == 1;
+		}						
 	}
 	
 	forall(l in localizacoes){
@@ -81,9 +83,9 @@ subject to {
 		forall(p in periodos){	
 			//Setar a quantidade de crime 'q' a ser reduzida daquele local
 			sum(po in policiais) x[po,l,p] * item(l.taxaCrime,p) 
-			+ sum(po in policiais, l2 in localizacoes : item(l2.distancias,l.id) < 2) x[po,l2,p] * item(l.taxaCrime,p)* 0.5
-			+ sum(po in policiais, l2 in localizacoes : item(l2.distancias,l.id) < 3) x[po,l2,p] * item(l.taxaCrime,p)* 0.25
-			+ sum(po in policiais, l2 in localizacoes : item(l2.distancias,l.id) < 4) x[po,l2,p] * item(l.taxaCrime,p)* 0.1  == q[l,p];
+			+ sum(po in policiais, l2 in localizacoes : item(l2.distancias,l.id) == 1) x[po,l2,p] * item(l.taxaCrime,p)* 0.5
+			+ sum(po in policiais, l2 in localizacoes : item(l2.distancias,l.id) == 2) x[po,l2,p] * item(l.taxaCrime,p)* 0.25
+			+ sum(po in policiais, l2 in localizacoes : item(l2.distancias,l.id) == 3) x[po,l2,p] * item(l.taxaCrime,p)* 0.1  == q[l,p];
 			//Restrição lógica para limitar o ‘v’
 			v[l,p] <= q[l,p];
 			//Restrições lógicas para garantir que a taxa de crime não será negativa
